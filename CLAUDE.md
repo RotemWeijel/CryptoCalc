@@ -2,19 +2,20 @@
 
 CryptoCalc is an educational, client-side-only web application that lets students of introductory cryptography explore cryptographic primitives and encryption schemes by running security experiments (for example, playing the distinguisher in a PRG or PRF experiment).
 
-Before starting any task, read `docs/PROJECT_BRIEF.md` (product requirements and roadmap).
+Before starting any task, read `docs/PROJECT_BRIEF.md` (product requirements and roadmap) and `docs/ARCHITECTURE.md` (architecture, folder layout and the v1 versus later scope split).
 
 ## Language
 
 - Write everything in English: identifiers, code comments, docs, README, commit messages, PR titles and descriptions, issue text. This applies even when the maintainer writes to you in Hebrew.
 - User-facing UI text is English by default and must live in dedicated string files (see "Configuration").
 
-## Tech stack (defaults, to be confirmed in the architecture task)
+## Tech stack (confirmed in `docs/ARCHITECTURE.md`, section 1)
 
-- React + TypeScript, built with Vite, tested with Vitest. Node.js tooling only.
+- React + TypeScript (strict), built with Vite, tested with Vitest and React Testing Library. Node.js tooling only (Node 24 LTS, 22 supported).
+- React Router with a hash router (deployed to GitHub Pages). Styling with CSS Modules and CSS custom properties generated from the theme file.
 - Client-side only: no backend, no server code, no database, no network calls at runtime.
 - Cryptographic arithmetic uses `BigInt` where integers can exceed 2^53.
-- Formal definitions are stored as LaTeX strings in data files and rendered with KaTeX (default choice, to be confirmed).
+- Formal definitions are stored as LaTeX strings in data files and rendered with KaTeX.
 
 ## Architecture principles
 
@@ -23,7 +24,10 @@ Before starting any task, read `docs/PROJECT_BRIEF.md` (product requirements and
 - Every primitive, scheme, example and experiment is a module that implements a shared interface and is registered in a registry. Adding or removing one must not require editing existing logic. UI pages render from module metadata.
 - Examples are generic. Each example (a PRG, a PRF, and so on) is a declarative definition: its LaTeX definition, its input and output lengths, its evaluation function, the component primitives it is built from, and whether it is secure. Pages and experiments take such a definition as input and never branch on a specific example. Adding a new example means adding data only, and every option (refute, prove, reveal the answer) works for it immediately.
 - Experiments follow the same rules for every example: fresh randomness in every round, and bit-string lengths validated at every boundary (a fixed-length bit-string type is recommended) so that a string of the wrong length can never be passed to an oracle.
-- Proof mode is automatic. The reduction framework is generic: the site simulates the assumed distinguisher `D'` by exhaustive search over all `2^n` seeds, and the user plays the distinguishing experiment against the underlying primitive with `D'` as an extra oracle. There is no reduction builder.
+- The reduction framework is generic and shared by the PRG and the PRF (a PRG is the special case whose challenge oracle has the single input ε).
+  - Interactive mode (PRG, v1): the site simulates the assumed distinguisher `D'` by exhaustive search over all `2^n` seeds, and the user plays the distinguishing experiment against the underlying primitive with `D'` as an extra oracle.
+  - Strategy analysis (later): the engine drives predefined `D'` strategies. The reduction `Sim` is a declarative expression AST. In the first version the user picks `Sim` from candidates in the example's data. A builder UI that edits the same AST comes later. Do not build it before its roadmap task.
+- Respect the v1 versus later split in `docs/ARCHITECTURE.md`, section 9: v1 code never imports later code.
 - Exhaustive simulation requires small security parameters. Enforce the maximum `n` from the limits file, cache results per example and `n`, and run heavy computation off the UI thread (for example in a Web Worker).
 - Depend on abstractions (interfaces), not concrete implementations. Inject dependencies (for example the randomness source) so that experiments are testable and deterministic under test.
 - Prefer small, single-purpose modules and functions.
@@ -32,11 +36,11 @@ Before starting any task, read `docs/PROJECT_BRIEF.md` (product requirements and
 
 Nothing that may change during development is hard-coded in components. Keep it in dedicated, easy-to-edit files:
 
-- UI strings, labels and explanations: string files, grouped by feature.
-- Theme tokens (colors, fonts, spacing): a theme file.
-- Limits and defaults, for example the maximum security parameter (kept small because of exhaustive simulation, value decided in the architecture task), the maximum number of rounds (10) and the default security parameter (10): a limits file.
+- UI strings, labels and explanations: `src/config/strings/<feature>.ts`.
+- Theme tokens (colors, fonts, spacing): `src/config/theme.ts`.
+- Limits and defaults: `src/config/limits.ts`. This covers the maximum security parameter (global 20, with lower caps per kind and per example), the maximum number of rounds (10) and the default security parameter (10).
 
-The exact folder layout is decided in the architecture task. Keep it consistent afterwards.
+The folder layout is defined in `docs/ARCHITECTURE.md`, section 2. Keep it consistent, and update that document in the same PR if it has to change.
 
 ## Terminology
 

@@ -74,7 +74,7 @@ Opening an example shows its definition in LaTeX and these options:
 
 ### 5.4 Proof: reduction
 
-Some examples define a generator `G'` in terms of a generator `G` that is known to be a PRG. Proving that `G'` is a PRG always works through a reduction, and the reduction is automatic: there is no reduction builder. Choosing "Try to prove" starts the following flow, accompanied by a plain-language explanation of the argument:
+Some examples define a generator `G'` in terms of a generator `G` that is known to be a PRG. Proving that `G'` is a PRG always works through a reduction. In the interactive mode the user plays the reduction directly, so nothing has to be built. Choosing "Try to prove" starts the following flow, accompanied by a plain-language explanation of the argument:
 
 1. **Assumption for contradiction.** Assume `G'` is not a PRG. Then a distinguisher `D'` for `G'` exists. The site simulates it.
 2. **Simulated `D'`.** Because `n` is small, the site simulates `D'` by exhaustive search: it runs `G'` on all `2^n` seeds and answers whether a given string is a possible output of `G'`. `D'` is added to the oracle section described in 5.3. This `D'` is an unbounded distinguisher on purpose, since the proof only assumes that some distinguisher exists.
@@ -82,6 +82,8 @@ Some examples define a generator `G'` in terms of a generator `G` that is known 
 4. **Contradiction.** If the user wins with non-negligible advantage, then `D'` lets them distinguish `G`, which contradicts `G` being a PRG. Hence the assumption was false and `G'` is a PRG.
 
 The same simulation machinery serves every example, including future ones produced by the parser.
+
+**Strategy analysis (later, after the PRF reduction in task 10).** The PRG is the oracle-free special case of the PRF reduction framework (section 6.2): the challenge is an oracle on the single input ε. The PRG proof page therefore gains a second mode next to the interactive one. In that mode the user picks a reduction `Sim` from candidates stored in the example's definition, and the site runs a library of predefined `D'` strategies, with exhaustive search as one of them, and shows the exact advantages side by side. See `docs/ARCHITECTURE.md`, sections 3.11 and 4.4.
 
 ### 5.5 Reveal the answer
 
@@ -100,7 +102,19 @@ The PRF page mirrors the PRG page: definition, examples, and the (inactive) opti
 
 ### 6.2 Proof
 
-The proof is an automatic reduction to the PRF given in the example's definition, which is assumed to be a PRF. It works like the PRG proof.
+The proof is a reduction to the PRF `F` given in the example's definition, which is assumed to be a PRF. In the formal reduction, `D'` chooses its own queries and the reduction only translates them, so the user does not answer `D'`'s queries by hand:
+
+1. **`D'` is a black box.** The site ships a library of predefined `D'` strategies: random guess (baseline), fixed non-adaptive queries, collision test, structure tests (equal halves, swapped halves on `x` and `x̄`), exhaustive key consistency, and an adaptive strategy. The engine drives each strategy as a coroutine.
+2. **The user supplies the reduction `Sim`** as a declarative mapping, for example "for query `x`, ask `O` at `0‖x` and `1‖x` and return the concatenation". It is stored as a small expression AST. In the first version the user picks `Sim` from candidates listed in the example's definition (correct ones and instructive flawed ones). A builder UI that edits the same AST comes later. The engine applies `Sim` to every `D'` query, so the simulated oracle is `O' = Sim(O)`.
+3. **Oracles are memoized.** The PRF oracle is `F_k` with a fixed `k`. The random oracle uses lazy sampling with a table, so it behaves as a true function.
+4. **Exact advantages.** For small `n` the site computes `Pr[D'^{F'_k}=1]` over all `k`, `Pr[D'^g=1]` over random `g` (by enumeration, or by sampling when the space is too big), and the same two quantities for `D = D'∘Sim` over `F_k` and a random `f`. They are shown side by side.
+5. **Optional step-by-step trace** of `D'` queries, `O` queries and answers, for small `q`.
+
+**Key teaching moment.** For the broken `F'_k(x) = F_k(x) ‖ F_k(x̄)`, the natural reduction ("query `O(x)` and `O(x̄)`, concatenate") fails. With `O = F_k`, `D'` sees the swap symmetry and says "PRF". With a random `O = f`, the simulated answers `f(x)‖f(x̄)` are symmetric too, so `D'` again says "PRF", and `D` has zero advantage. The simulated oracle in the random case is not a random function, and the UI shows this as `Pr[D^f=1] ≠ Pr[D'^g=1]`. For the secure `F'_k(x) = F_k(0‖x) ‖ F_k(1‖x)` the two numbers are equal.
+
+**Caveat shown in the UI.** With a small key space, `F` itself is not a PRF, because brute-force key search distinguishes it. The tool demonstrates that the reduction preserves the distributions (`Adv_D = Adv_{D'}`), not that `F` is secure. `F` is treated as a black box.
+
+**Later extension.** Constructions such as `F_k(F_k(x))` need a hybrid argument (an oracle that behaves like `F` up to query `i` and is random afterwards). The architecture leaves an extension point for this.
 
 ### 6.3 Reveal the answer
 
@@ -125,13 +139,22 @@ Tasks are done one by one, in this order:
 - [ ] 8. PRF example page: reveal, refute, prove.
 - [ ] 9. PRF distinguishing experiment.
 - [ ] 10. PRF reduction experiment.
-- [ ] 11. Next tasks, to be defined.
+- [ ] 11. Strategy-analysis mode for the PRG proof (shared reduction framework).
+- [ ] 12. Reduction builder UI that edits the `Sim` expression AST.
+- [ ] 13. Hybrid arguments (for constructions such as `F_k(F_k(x))`).
+- [ ] 14. Next tasks, to be defined.
 
 ## 9. Open questions
 
-- The hard maximum for `n`. The main prompt says 30, but exhaustive search over `2^n` seeds needs a lower value. To be decided in the architecture task, possibly per example.
-- Maximum number of attempts `m` in the PRF experiment, and how the PRF oracle `D'` is simulated.
-- The initial list of built-in PRG and PRF examples.
-- Whether the example page also links directly to the home page, or only through the global navigation.
-- Deployment target for the public site.
+Resolved in the architecture task (see `docs/ARCHITECTURE.md`):
+
+- ~~The hard maximum for `n`.~~ A global cap in the limits file (proposed 20), a per-kind cap (PRF: 16), and an optional lower cap per example. The effective maximum is the smallest of the three.
+- ~~How the PRF oracle `D'` is simulated.~~ A library of predefined `D'` strategies driven by the engine, plus a declarative reduction `Sim` (section 6.2).
+- ~~Whether the example page links directly to the home page.~~ A global header and breadcrumbs that always include Home.
+- ~~Deployment target.~~ GitHub Pages, deployed by GitHub Actions, using hash-based routing.
+
+Still open:
+
+- Maximum number of attempts `m` and of queries per attempt in the PRF experiment (proposed: 10 and 16).
+- The initial list of built-in PRG and PRF examples, and the toy base generator `G` and function `F`.
 - The principle written as "SVM" in the original prompt needs to be identified, since SOLID is the confirmed principle.

@@ -30,6 +30,7 @@ Setup instructions will be added once the project scaffold is merged.
 ## Documentation
 
 - [Project brief and roadmap](docs/PROJECT_BRIEF.md)
+- [Architecture](docs/ARCHITECTURE.md)
 
 ## Contributing
 
